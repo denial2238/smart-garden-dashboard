@@ -31,7 +31,7 @@ def fetch_data(plant_id):
     except:
         return pd.DataFrame()
 
-st.title("🌿 My Smart Garden")
+st.title("🌿 Smart Garden")
 
 # --- 3. THE TILE GRID (Native Method) ---
 cols = st.columns(len(plants))
