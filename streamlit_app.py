@@ -2,49 +2,58 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
+import base64
+import os
 
 # --- 1. CONFIG & STYLE ---
-st.set_page_config(page_title="Plant Care", layout="wide", page_icon="🌿")
+st.set_page_config(page_title="Plant Care 2026", layout="wide")
 
-# Custom CSS to make buttons look like "Tiles" with images
+# Function to safely load and encode local images for CSS
+def get_base64_image(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    return None
+
 st.markdown("""
     <style>
+    /* Card/Tile styling */
     div.stButton > button {
         width: 100%;
-        height: 250px;
-        border-radius: 15px;
-        border: 1px solid #ddd;
-        background-color: white;
-        transition: transform 0.2s;
-        padding: 0;
-        overflow: hidden;
-        display: block;
+        height: 320px;
+        border-radius: 20px;
+        border: none;
+        color: white !important;
+        /* Darker text shadow for readability on bright photos */
+        text-shadow: 2px 2px 10px rgba(0,0,0,1);
+        background-size: cover !important;
+        background-position: center !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        transition: transform 0.3s ease;
+        padding: 20px !important;
     }
     div.stButton > button:hover {
-        transform: scale(1.02);
-        border-color: #4CAF50;
+        transform: scale(1.03);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.4);
     }
-    .tile-img {
-        width: 100%;
-        height: 160px;
-        object-fit: cover;
-    }
-    .tile-text {
-        padding: 10px;
-        text-align: center;
-    }
+    /* Style for the big plant name and moisture label */
+    .plant-label { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
+    .moisture-label { font-size: 18px; opacity: 0.9; }
     </style>
-    """, unsafe_allow_stdio=True)
+    """, unsafe_allow_html=True) # FIXED: Changed from unsafe_allow_stdio
 
 BASE_URL = "https://plants-110c1-default-rtdb.europe-west1.firebasedatabase.app"
 plants = [
-    {"id": "chamaedorea_elegans", "label": "Chamaedorea", "img": "public/chamaedorea_elegans.jpg"},
-    {"id": "epipremnum", "label": "Epipremnum", "img": "public/epipremnum.jpg"},
-    {"id": "spathiphyllum", "label": "Spathiphyllum", "img": "public/spathiphyllum.jpg"},
-    {"id": "athyrium", "label": "Athyrium", "img": "public/athyrium.jpg"}
+    {"id": "chamaedorea_elegans", "name": "Chamaedorea", "file": "public/chamaedorea_elegans.jpg"},
+    {"id": "epipremnum", "name": "Epipremnum", "file": "public/epipremnum.jpg"},
+    {"id": "spathiphyllum", "name": "Spathiphyllum", "file": "public/spathiphyllum.jpg"},
+    {"id": "athyrium", "name": "Athyrium", "file": "public/athyrium.jpg"}
 ]
 
-# Initialize session state to track which plant is selected
 if 'selected_plant' not in st.session_state:
     st.session_state.selected_plant = plants[0]['id']
 
@@ -52,50 +61,51 @@ if 'selected_plant' not in st.session_state:
 @st.cache_data(ttl=30)
 def fetch_data(plant_id):
     try:
-        response = requests.get(f"{BASE_URL}/{plant_id}.json")
-        data = response.json()
+        r = requests.get(f"{BASE_URL}/{plant_id}.json")
+        data = r.json()
         if not data: return pd.DataFrame()
         df = pd.DataFrame(list(data.values()))
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         return df.sort_values('timestamp')
-    except:
-        return pd.DataFrame()
+    except: return pd.DataFrame()
 
 st.title("🌿 My Smart Garden")
 
-# --- 3. CLICKABLE TILES GRID ---
-st.subheader("Tap a plant to see history")
+# --- 3. TILES WITH BACKGROUND IMAGES ---
 cols = st.columns(len(plants))
 
 for i, p in enumerate(plants):
     df = fetch_data(p['id'])
-    moisture = df.iloc[-1]['moisture'] if not df.empty else "N/A"
+    val = f"{df.iloc[-1]['moisture']}%" if not df.empty else "--%"
+    
+    # Inject CSS background for each specific button key
+    img_b64 = get_base64_image(p['file'])
+    if img_b64:
+        st.markdown(f"""
+            <style>
+            button[key="{p['id']}"] {{
+                background: linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.6)), 
+                            url(data:image/jpeg;base64,{img_b64});
+            }}
+            </style>
+            """, unsafe_allow_html=True)
     
     with cols[i]:
-        # We wrap the image and text inside the button using Markdown label
-        tile_html = f'''
-            <img src="{p['img']}" class="tile-img">
-            <div class="tile-text">
-                <b>{p['label']}</b><br>
-                <span style="font-size: 20px; color: {'#e74c3c' if moisture != "N/A" and moisture < 30 else '#2ecc71'}">{moisture}%</span>
-            </div>
-        '''
-        if st.button(p['label'], key=p['id'], help=f"Click for {p['label']} details"):
+        # Label uses newline to separate Name and Moisture
+        if st.button(f"{p['name']}\n\n{val}", key=p['id']):
             st.session_state.selected_plant = p['id']
 
-# --- 4. HISTORICAL GRAPH (The "Click Result") ---
+# --- 4. HISTORY CHART ---
 st.divider()
-selected_id = st.session_state.selected_plant
-st.subheader(f"Detailed View: {selected_id.replace('_', ' ').title()}")
+sel = st.session_state.selected_plant
+st.subheader(f"History: {sel.replace('_', ' ').title()}")
 
-df_plot = fetch_data(selected_id)
-
+df_plot = fetch_data(sel)
 if not df_plot.empty:
     fig = px.line(df_plot, x='timestamp', y='moisture', 
-                  title=f"Moisture Levels for {selected_id}",
-                  template="plotly_white")
+                  template="plotly_dark", markers=True)
     
-    # UPDATED: Using width='stretch' as per 2026 requirements
+    # FIXED: Replaced use_container_width=True with width='stretch'
     st.plotly_chart(fig, width='stretch')
 else:
-    st.warning("No historical data found for this plant.")
+    st.info("Waiting for data...")
