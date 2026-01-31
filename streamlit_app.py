@@ -78,7 +78,7 @@ def fetch_data(path):
     except: return pd.DataFrame()
 
 # --- 3. TOP HERO SECTION (Thermostat) ---
-st.title("🌿 Garden Control Center")
+st.title("🌿 Home plants monitoring")
 
 temp_df = fetch_data("ambient_temperature")
 curr_temp = temp_df.iloc[-1]['value'] if not temp_df.empty else None
