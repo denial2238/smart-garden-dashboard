@@ -5,55 +5,54 @@ import plotly.express as px
 import base64
 import os
 
-# --- 1. CONFIG & STYLE ---
-st.set_page_config(page_title="Plant Care 2026", layout="wide")
+# --- 1. SETTINGS & STYLES ---
+st.set_page_config(page_title="Garden Dashboard", layout="wide")
 
-# Function to safely load and encode local images for CSS
-def get_base64_image(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            data = f.read()
-        return base64.b64encode(data).decode()
-    return None
+def get_base64(bin_file):
+    base_path = os.path.dirname(__file__)
+    full_path = os.path.join(base_path, bin_file)
+    if not os.path.exists(full_path):
+        return ""
+    with open(full_path, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
+# CSS for full-tile clickable buttons with background images
 st.markdown("""
     <style>
-    /* Card/Tile styling */
     div.stButton > button {
-        width: 100%;
-        height: 320px;
-        border-radius: 20px;
-        border: none;
+        width: 100% !important;
+        height: 300px !important;
+        border: none !important;
+        border-radius: 20px !important;
         color: white !important;
-        /* Darker text shadow for readability on bright photos */
-        text-shadow: 2px 2px 10px rgba(0,0,0,1);
+        text-shadow: 2px 2px 8px rgba(0,0,0,0.9) !important;
         background-size: cover !important;
         background-position: center !important;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        transition: transform 0.3s ease;
-        padding: 20px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-end !important;
+        padding-bottom: 20px !important;
+        font-size: 22px !important;
+        font-weight: bold !important;
+        white-space: pre-wrap !important; /* Vital for the \n line break */
     }
     div.stButton > button:hover {
-        transform: scale(1.03);
-        box-shadow: 0 12px 24px rgba(0,0,0,0.4);
+        transform: translateY(-5px);
+        filter: brightness(1.1);
     }
-    /* Style for the big plant name and moisture label */
-    .plant-label { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
-    .moisture-label { font-size: 18px; opacity: 0.9; }
     </style>
-    """, unsafe_allow_html=True) # FIXED: Changed from unsafe_allow_stdio
+    """, unsafe_allow_html=True)
 
 BASE_URL = "https://plants-110c1-default-rtdb.europe-west1.firebasedatabase.app"
 plants = [
-    {"id": "chamaedorea_elegans", "name": "Chamaedorea", "file": "public/chamaedorea_elegans.jpg"},
-    {"id": "epipremnum", "name": "Epipremnum", "file": "public/epipremnum.jpg"},
-    {"id": "spathiphyllum", "name": "Spathiphyllum", "file": "public/spathiphyllum.jpg"},
-    {"id": "athyrium", "name": "Athyrium", "file": "public/athyrium.jpg"}
+    {"id": "chamaedorea_elegans", "label": "Chamaedorea", "file": "public/chamaedorea_elegans.jpg"},
+    {"id": "epipremnum", "label": "Epipremnum", "file": "public/epipremnum.jpg"},
+    {"id": "spathiphyllum", "label": "Spathiphyllum", "file": "public/spathiphyllum.jpg"},
+    {"id": "athyrium", "label": "Athyrium", "file": "public/athyrium.jpg"}
 ]
 
+# Initialize selection state
 if 'selected_plant' not in st.session_state:
     st.session_state.selected_plant = plants[0]['id']
 
@@ -71,41 +70,48 @@ def fetch_data(plant_id):
 
 st.title("🌿 My Smart Garden")
 
-# --- 3. TILES WITH BACKGROUND IMAGES ---
+# --- 3. CLICKABLE TILES GRID ---
+st.subheader("Tap a plant to view historical data")
 cols = st.columns(len(plants))
 
 for i, p in enumerate(plants):
     df = fetch_data(p['id'])
-    val = f"{df.iloc[-1]['moisture']}%" if not df.empty else "--%"
+    latest_moist = f"{df.iloc[-1]['moisture']}%" if not df.empty else "--%"
     
-    # Inject CSS background for each specific button key
-    img_b64 = get_base64_image(p['file'])
+    # Inject background image CSS for this specific button
+    img_b64 = get_base64(p['file'])
     if img_b64:
         st.markdown(f"""
             <style>
             button[key="{p['id']}"] {{
-                background: linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.6)), 
-                            url(data:image/jpeg;base64,{img_b64});
+                background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.1) 60%), 
+                            url(data:image/jpeg;base64,{img_b64}) !important;
+                background-size: cover !important;
             }}
             </style>
             """, unsafe_allow_html=True)
     
     with cols[i]:
-        # Label uses newline to separate Name and Moisture
-        if st.button(f"{p['name']}\n\n{val}", key=p['id']):
+        # Label combines Name (Big) and Moisture (Underneath)
+        label = f"{p['label']}\n{latest_moist}"
+        if st.button(label, key=p['id']):
             st.session_state.selected_plant = p['id']
+            st.rerun() # Force the app to update the graph immediately
 
-# --- 4. HISTORY CHART ---
+# --- 4. HISTORICAL GRAPH ---
 st.divider()
-sel = st.session_state.selected_plant
-st.subheader(f"History: {sel.replace('_', ' ').title()}")
+sel_id = st.session_state.selected_plant
+display_name = next((p['label'] for p in plants if p['id'] == sel_id), sel_id)
 
-df_plot = fetch_data(sel)
+st.subheader(f"Detailed View: {display_name}")
+
+df_plot = fetch_data(sel_id)
+
 if not df_plot.empty:
     fig = px.line(df_plot, x='timestamp', y='moisture', 
-                  template="plotly_dark", markers=True)
+                  markers=True, template="plotly_white")
     
-    # FIXED: Replaced use_container_width=True with width='stretch'
+    # Modern 2026 sizing
     st.plotly_chart(fig, width='stretch')
 else:
-    st.info("Waiting for data...")
+    st.warning("No data found for this selection.")
