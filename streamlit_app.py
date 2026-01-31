@@ -8,35 +8,35 @@ import os
 # --- 1. MODERN PAGE CONFIG & STYLING ---
 st.set_page_config(page_title="GardenOS", layout="wide", page_icon="🌿")
 
-# Custom CSS for Modern Glassmorphism Look
+# Custom CSS for Light Modern Look
 st.markdown("""
     <style>
-    /* Main Background */
+    /* Clean White Background */
     .stApp {
-        background: linear-gradient(135deg, #1e1e2f 0%, #121212 100%);
-        color: #e0e0e0;
+        background-color: #ffffff;
+        color: #31333F;
     }
     
-    /* Card Styling */
+    /* Card Styling for Light Theme */
     div[data-testid="stMetric"] {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(0, 0, 0, 0.02);
+        border: 1px solid rgba(0, 0, 0, 0.05);
         padding: 15px;
         border-radius: 15px;
-        backdrop-filter: blur(10px);
     }
     
-    /* Custom Container styling */
+    /* Custom Container styling (Cards) */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         border-radius: 20px !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        background: rgba(255, 255, 255, 0.03) !important;
-        transition: transform 0.3s ease;
+        border: 1px solid #eeeeee !important;
+        background: #ffffff !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02) !important;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
     
     div[data-testid="stVerticalBlockBorderWrapper"]:hover {
         transform: translateY(-5px);
-        background: rgba(255, 255, 255, 0.07) !important;
+        box-shadow: 0 10px 15px rgba(0,0,0,0.05) !important;
     }
 
     /* Button Styling */
@@ -46,12 +46,11 @@ st.markdown("""
         color: white !important;
         border: none !important;
         font-weight: bold !important;
-        padding: 10px 20px !important;
     }
     
     .stButton > button:hover {
-        background: #66bb6a !important;
-        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4) !important;
+        background: #45a049 !important;
+        color: white !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -67,7 +66,6 @@ plants = [
 if 'selected_plant' not in st.session_state:
     st.session_state.selected_plant = plants[0]['id']
 
-# --- 2. DATA ENGINE ---
 @st.cache_data(ttl=30)
 def fetch_data(path):
     try:
@@ -92,29 +90,29 @@ with t_col2:
         fig_temp = go.Figure(go.Indicator(
             mode = "gauge+number",
             value = curr_temp,
-            number = {'suffix': "°C", 'font': {'color': "#ffffff", 'size': 50}},
+            # Changed text color to dark gray for white background
+            number = {'suffix': "°C", 'font': {'color': "#31333F", 'size': 50}},
             gauge = {
-                'axis': {'range': [-40, 40], 'tickwidth': 1, 'tickcolor': "#888"},
+                'axis': {'range': [-40, 40], 'tickwidth': 1, 'tickcolor': "#31333F"},
                 'bar': {'color': "#4caf50"},
-                'bgcolor': "rgba(0,0,0,0)",
-                'borderwidth': 0,
+                'bgcolor': "white",
+                'borderwidth': 2,
+                'bordercolor': "#eeeeee",
                 'steps': [
-                    {'range': [-40, 0], 'color': "rgba(33, 150, 243, 0.3)"},
-                    {'range': [0, 18], 'color': "rgba(255, 255, 255, 0.1)"},
-                    {'range': [18, 28], 'color': "rgba(76, 175, 80, 0.2)"},
-                    {'range': [28, 40], 'color': "rgba(244, 67, 54, 0.3)"}
+                    {'range': [-40, 0], 'color': "#e3f2fd"},
+                    {'range': [0, 18], 'color': "#f1f8e9"},
+                    {'range': [18, 28], 'color': "#c8e6c9"},
+                    {'range': [28, 40], 'color': "#fff9c4"}
                 ]
             }
         ))
         fig_temp.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='white',
+            plot_bgcolor='white',
             height=300,
             margin=dict(l=20, r=20, t=20, b=20)
         )
         st.plotly_chart(fig_temp, width='stretch')
-    else:
-        st.warning("Awaiting sensor data...")
 
 st.markdown("---")
 
@@ -130,9 +128,7 @@ for i, p in enumerate(plants):
             
             df = fetch_data(p['id'])
             moist = df.iloc[-1]['moisture'] if not df.empty else 0
-            
-            # Dynamic color for moisture
-            m_color = "#66bb6a" if moist > 30 else "#ffa726" if moist > 15 else "#ef5350"
+            m_color = "#2e7d32" if moist > 30 else "#ef6c00" if moist > 15 else "#d32f2f"
             
             st.markdown(f"#### {p['label']}")
             st.markdown(f"**Soil Moisture:** <span style='color:{m_color}; font-size:24px; font-weight:bold;'>{moist}%</span>", unsafe_allow_html=True)
@@ -141,7 +137,7 @@ for i, p in enumerate(plants):
                 st.session_state.selected_plant = p['id']
                 st.rerun()
 
-# --- 5. ANALYTICS ---
+# --- 5. ANALYTICS (Fixed Graph) ---
 st.markdown("---")
 sel_id = st.session_state.selected_plant
 display_name = next((p['label'] for p in plants if p['id'] == sel_id), sel_id)
@@ -150,14 +146,29 @@ st.subheader(f"📊 {display_name} History")
 df_plot = fetch_data(sel_id)
 
 if not df_plot.empty:
+    # Switched to plotly_white template
     fig = px.area(df_plot, x='timestamp', y='moisture', 
-                  template="plotly_dark",
+                  template="plotly_white",
                   line_shape='spline')
-    fig.update_traces(line_color='#4caf50', fillcolor='rgba(76, 175, 80, 0.1)')
+    
+    fig.update_traces(
+        line_color='#4caf50', 
+        fillcolor='rgba(76, 175, 80, 0.2)'
+    )
+    
     fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        yaxis=dict(range=[0, 100], gridcolor='rgba(255,255,255,0.1)'),
-        xaxis=dict(gridcolor='rgba(255,255,255,0.1)')
+        hovermode="x unified",
+        yaxis=dict(
+            range=[0, 105], 
+            gridcolor='#f0f0f0',
+            title="Moisture %"
+        ),
+        xaxis=dict(
+            gridcolor='#f0f0f0',
+            title="Time"
+        ),
+        # Ensure the chart area is purely white
+        paper_bgcolor='white',
+        plot_bgcolor='white'
     )
     st.plotly_chart(fig, width='stretch')
